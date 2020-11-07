@@ -38,7 +38,7 @@ func (s S3PGStore) GetAirgapInstallStatus() (*airgaptypes.InstallStatus, error) 
 	var installState sql.NullString
 	if err := row.Scan(&installState); err != nil {
 		if err == sql.ErrNoRows {
-			return &types.InstallStatus{
+			return &airgaptypes.InstallStatus{
 				InstallStatus:  "not_installed",
 				CurrentMessage: "",
 			}, nil

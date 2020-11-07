@@ -69,6 +69,7 @@ spec:
             #   value: "true"
             - name: KURL_PROXY_TLS_CERT_PATH
               value: /etc/kurl-proxy/ca/tls.crt
+
       volumes:
         - emptyDir:
             medium: Memory
