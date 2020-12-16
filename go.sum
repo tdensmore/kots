@@ -162,11 +162,7 @@ github.com/aws/aws-sdk-go v1.25.18/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpi
 github.com/aws/aws-sdk-go v1.27.0/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
 github.com/aws/aws-sdk-go v1.28.2 h1:j5IXG9CdyLfcVfICqo1PXVv+rua+QQHbkXuvuU/JF+8=
 github.com/aws/aws-sdk-go v1.28.2/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
-<<<<<<< HEAD:go.sum
-github.com/aws/aws-sdk-go-v2 v0.18.0/go.mod h1:JWVYvqSMppoMJC0x5wdwiImzgXTI9FuZwxzkQq9wy+g=
-=======
 github.com/aws/aws-sdk-go-v2 v0.23.0/go.mod h1:2LhT7UgHOXK3UXONKI5OMgIyoQL6zTAw/jwIeX6yqzw=
->>>>>>> Continued work on OCI store to run without PG and S3:kotsadm/go.sum
 github.com/bazelbuild/bazel-gazelle v0.18.2/go.mod h1:D0ehMSbS+vesFsLGiD6JXu3mVEzOlfUl8wNnq+x/9p0=
 github.com/bazelbuild/bazel-gazelle v0.19.1-0.20191105222053-70208cbdc798/go.mod h1:rPwzNHUqEzngx1iVBfO/2X2npKaT3tqPqqHW6rVsn/A=
 github.com/bazelbuild/buildtools v0.0.0-20190731111112-f720930ceb60/go.mod h1:5JP0TXzWDHXv8qvxRC4InIazwdyDseBDbzESUMKk1yU=
@@ -236,12 +232,9 @@ github.com/client9/misspell v0.3.4 h1:ta993UF76GwbvJcIo3Y68y/M3WxlpEHPWIGDkJYwzJ
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/clusterhq/flocker-go v0.0.0-20160920122132-2b8b7259d313/go.mod h1:P1wt9Z3DP8O6W3rvwCt0REIlshg1InHImaLW0t3ObY0=
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=
-<<<<<<< HEAD:go.sum
 github.com/cockroachdb/datadriven v0.0.0-20190809214429-80d97fb3cbaa h1:OaNxuTZr7kxeODyLWsRMC+OD03aFUH+mW6r2d+MWa5Y=
-=======
 github.com/cockroachdb/apd v1.1.0 h1:3LFP3629v+1aKXU5Q37mxmRxX/pIu1nijXydLShEq5I=
 github.com/cockroachdb/apd v1.1.0/go.mod h1:8Sl8LxpKi29FqWXR16WEFZRNSz3SoPzUzeMeY4+DwBQ=
->>>>>>> Continued work on OCI store to run without PG and S3:kotsadm/go.sum
 github.com/cockroachdb/datadriven v0.0.0-20190809214429-80d97fb3cbaa/go.mod h1:zn76sxSg3SzpJ0PPJaLDCu+Bu0Lg3sKTORVIj19EIF8=
 github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd/go.mod h1:sE/e/2PUdi/liOCUjSTXgM1o87ZssimdTWN964YiIeI=
 github.com/codegangsta/negroni v1.0.0/go.mod h1:v0y3T5G7Y1UlFfyxFn/QLRU4a2EuNau2iZY63YTKWo0=
@@ -570,13 +563,10 @@ github.com/golang/protobuf v1.4.0/go.mod h1:jodUvKwWbYaEsadDk5Fwe5c77LiNKVO9IDvq
 github.com/golang/protobuf v1.4.1/go.mod h1:U8fpvMrcmy5pZrNK1lt4xCsGvpyWQ/VVv6QDs8UjoX8=
 github.com/golang/protobuf v1.4.2 h1:+Z5KGCizgyZCbGh1KZqA0fcLLkwbsjIzS4aV2v7wJX0=
 github.com/golang/protobuf v1.4.2/go.mod h1:oDoupMAO8OvCJWAcko0GGGIgR6R6ocIYbsSw735rRwI=
-<<<<<<< HEAD:go.sum
 github.com/golang/protobuf v1.4.3 h1:JjCZWpVbqXDqFVmTfYWEVTMIYrL/NPdPSCHPJ0T/raM=
 github.com/golang/protobuf v1.4.3/go.mod h1:oDoupMAO8OvCJWAcko0GGGIgR6R6ocIYbsSw735rRwI=
 github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
-=======
 github.com/golang/snappy v0.0.0-20170215233205-553a64147049/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
->>>>>>> Continued work on OCI store to run without PG and S3:kotsadm/go.sum
 github.com/golang/snappy v0.0.1 h1:Qgr9rKW7uDUkrbSmQeiDsGa8SjGyCOGtuasMWwvp2P4=
 github.com/golang/snappy v0.0.1/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
 github.com/golangci/check v0.0.0-20180506172741-cfe4005ccda2/go.mod h1:k9Qvh+8juN+UKMCS/3jFtGICgW8O96FVaZsaxdzDkR4=
@@ -1057,11 +1047,20 @@ github.com/nwaples/rardecode v1.0.0/go.mod h1:5DzqNKiOdpKKBH87u8VlvAnPZMXcGRhxWk
 github.com/nxadm/tail v1.4.4 h1:DQuhQpB1tVlglWS2hLQ5OV6B5r8aGxSrPc5Qo6uTN78=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 <<<<<<< HEAD:go.sum
+<<<<<<< HEAD:go.sum
 github.com/oklog/oklog v0.3.2/go.mod h1:FCV+B7mhrz4o+ueLpx+KqkyXRGMWOYEvfiXtdGtbWGs=
 =======
 github.com/ocidb/ocidb v0.0.0-20201206152354-613063128535 h1:Lsd6bPeTtMStcEEizEYkkIEyCVDIyRBdp449JsGUKno=
 github.com/ocidb/ocidb v0.0.0-20201206152354-613063128535/go.mod h1:ge6U0rvNOJCNij4lkJwHqwsE32znquPYIzRJQoI1A9U=
 >>>>>>> Continued work on OCI store to run without PG and S3:kotsadm/go.sum
+=======
+github.com/ocidb/ocidb v0.0.0-20201208201655-7d55cfdfb5b9 h1:jsJhpY7BJfyl5IBd9PJp+9JDQfYiffeCy35rdWbkVD0=
+github.com/ocidb/ocidb v0.0.0-20201208201655-7d55cfdfb5b9/go.mod h1:ge6U0rvNOJCNij4lkJwHqwsE32znquPYIzRJQoI1A9U=
+github.com/ocidb/ocidb v0.0.0-20201208202011-e2fe9d5c7683 h1:1P+lwQSyraKCYKmN/tJE8K6KmhIAsxw6pCUOn+gUCYo=
+github.com/ocidb/ocidb v0.0.0-20201208202011-e2fe9d5c7683/go.mod h1:ge6U0rvNOJCNij4lkJwHqwsE32znquPYIzRJQoI1A9U=
+github.com/ocidb/ocidb v0.0.0-20201208225931-21f4e861e0f5 h1:MEXbE3XLf1R5qq0svRcM9dv4pL01FmChzqEZ9xYUv7Y=
+github.com/ocidb/ocidb v0.0.0-20201208225931-21f4e861e0f5/go.mod h1:ge6U0rvNOJCNij4lkJwHqwsE32znquPYIzRJQoI1A9U=
+>>>>>>> f:kotsadm/go.sum
 github.com/oklog/run v1.0.0 h1:Ru7dDtJNOyC66gQ5dQmaCa0qIsAUFY3sFpK1Xk8igrw=
 github.com/oklog/run v1.0.0/go.mod h1:dlhp/R75TPv97u0XWUtDeV/lRKWPKSdTuV0TZvrmrQA=
 github.com/oklog/ulid v1.3.1/go.mod h1:CirwcVhetQ6Lv90oh/F+FBtV6XMibvdAFo93nm5qn4U=
