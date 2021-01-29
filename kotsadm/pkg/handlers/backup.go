@@ -10,6 +10,7 @@ import (
 	"github.com/replicatedhq/kots/kotsadm/pkg/snapshot"
 	snapshottypes "github.com/replicatedhq/kots/kotsadm/pkg/snapshot/types"
 	"github.com/replicatedhq/kots/kotsadm/pkg/store"
+	kotssnapshot "github.com/replicatedhq/kots/pkg/snapshot"
 )
 
 type CreateApplicationBackupRequest struct {
@@ -74,7 +75,7 @@ func (h *Handler) ListBackups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	veleroStatus, err := snapshot.DetectVelero()
+	veleroStatus, err := kotssnapshot.DetectVelero()
 	if err != nil {
 		logger.Error(err)
 		listBackupsResponse.Error = "failed to detect velero"

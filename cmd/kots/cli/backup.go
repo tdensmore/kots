@@ -40,6 +40,8 @@ func BackupCmd() *cobra.Command {
 	cmd.Flags().Bool("wait", true, "wait for the backup to finish")
 
 	cmd.AddCommand(BackupListCmd())
+	cmd.AddCommand(BackupConfigureNFSCmd())
+	cmd.AddCommand(BackupPrintNFSConfigCmd())
 
 	return cmd
 }

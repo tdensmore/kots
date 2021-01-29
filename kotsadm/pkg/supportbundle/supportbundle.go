@@ -23,12 +23,12 @@ import (
 	"github.com/replicatedhq/kots/kotsadm/pkg/persistence"
 	"github.com/replicatedhq/kots/kotsadm/pkg/registry"
 	"github.com/replicatedhq/kots/kotsadm/pkg/render/helper"
-	"github.com/replicatedhq/kots/kotsadm/pkg/snapshot"
 	"github.com/replicatedhq/kots/kotsadm/pkg/store"
 	"github.com/replicatedhq/kots/kotsadm/pkg/supportbundle/types"
 	"github.com/replicatedhq/kots/kotskinds/client/kotsclientset/scheme"
 	kotstypes "github.com/replicatedhq/kots/pkg/kotsadm/types"
 	"github.com/replicatedhq/kots/pkg/kotsutil"
+	"github.com/replicatedhq/kots/pkg/snapshot"
 	"github.com/replicatedhq/kots/pkg/template"
 	troubleshootv1beta2 "github.com/replicatedhq/troubleshoot/pkg/apis/troubleshoot/v1beta2"
 	"github.com/segmentio/ksuid"
@@ -448,6 +448,7 @@ func makeKotsadmCollectors() []*troubleshootv1beta2.Collect {
 		"kotsadm-operator",
 		"kurl-proxy-kotsadm",
 		"kotsadm-dex",
+		"kotsadm-nfs-minio",
 	}
 	kotsadmCollectors := []*troubleshootv1beta2.Collect{}
 	for _, name := range names {

@@ -72,6 +72,16 @@ func (l *Logger) Info(msg string, args ...interface{}) {
 	fmt.Println("")
 }
 
+func (l *Logger) ColoredInfo(msg string, c *color.Color, args ...interface{}) {
+	if l == nil || l.isSilent {
+		return
+	}
+
+	fmt.Printf("    ")
+	c.Println(fmt.Sprintf(msg, args...))
+	fmt.Println("")
+}
+
 func (l *Logger) ActionWithoutSpinner(msg string, args ...interface{}) {
 	if l == nil || l.isSilent {
 		return

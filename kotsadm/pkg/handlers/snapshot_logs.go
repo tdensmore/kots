@@ -8,13 +8,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/replicatedhq/kots/kotsadm/pkg/logger"
 	"github.com/replicatedhq/kots/kotsadm/pkg/snapshot"
+	kotssnapshot "github.com/replicatedhq/kots/pkg/snapshot"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 )
 
 func (h *Handler) DownloadSnapshotLogs(w http.ResponseWriter, r *http.Request) {
 	backupName := mux.Vars(r)["backup"]
 
-	bsl, err := snapshot.FindBackupStoreLocation()
+	bsl, err := kotssnapshot.FindBackupStoreLocation()
 	if err != nil {
 		logger.Error(err)
 		w.WriteHeader(500)

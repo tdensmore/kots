@@ -1,22 +1,30 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
+	"github.com/replicatedhq/kots/kotsadm/pkg/k8s"
 	"github.com/replicatedhq/kots/kotsadm/pkg/kurl"
 	"github.com/replicatedhq/kots/kotsadm/pkg/logger"
 	"github.com/replicatedhq/kots/kotsadm/pkg/snapshot"
 	snapshottypes "github.com/replicatedhq/kots/kotsadm/pkg/snapshot/types"
 	"github.com/replicatedhq/kots/kotsadm/pkg/store"
+	"github.com/replicatedhq/kots/pkg/k8sutil"
+	"github.com/replicatedhq/kots/pkg/kotsadm"
+	kotssnapshot "github.com/replicatedhq/kots/pkg/snapshot"
+	kotssnapshottypes "github.com/replicatedhq/kots/pkg/snapshot/types"
 	"github.com/robfig/cron"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/kubernetes"
 )
 
 type GlobalSnapshotSettingsResponse struct {
@@ -27,9 +35,11 @@ type GlobalSnapshotSettingsResponse struct {
 	IsResticRunning bool     `json:"isResticRunning"`
 	IsKurl          bool     `json:"isKurl"`
 
-	Store   *snapshottypes.Store `json:"store,omitempty"`
-	Success bool                 `json:"success"`
-	Error   string               `json:"error,omitempty"`
+	Store     *kotssnapshottypes.Store     `json:"store,omitempty"`
+	NFSConfig *kotssnapshottypes.NFSConfig `json:"nfsConfig,omitempty"`
+
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
 }
 
 type UpdateGlobalSnapshotSettingsRequest struct {
@@ -37,11 +47,28 @@ type UpdateGlobalSnapshotSettingsRequest struct {
 	Bucket   string `json:"bucket"`
 	Path     string `json:"path"`
 
-	AWS      *snapshottypes.StoreAWS    `json:"aws"`
-	Google   *snapshottypes.StoreGoogle `json:"gcp"`
-	Azure    *snapshottypes.StoreAzure  `json:"azure"`
-	Other    *snapshottypes.StoreOther  `json:"other"`
-	Internal bool                       `json:"internal"`
+	AWS      *kotssnapshottypes.StoreAWS    `json:"aws"`
+	Google   *kotssnapshottypes.StoreGoogle `json:"gcp"`
+	Azure    *kotssnapshottypes.StoreAzure  `json:"azure"`
+	Other    *kotssnapshottypes.StoreOther  `json:"other"`
+	Internal bool                           `json:"internal"`
+	NFS      *NFSOptions                    `json:"nfs"`
+}
+
+type ConfigureNFSSnapshotsProviderResponse struct {
+	Success   bool   `json:"success"`
+	Error     string `json:"error,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+type ConfigureNFSSnapshotsProviderRequest struct {
+	NFSOptions NFSOptions `json:"nfsOptions"`
+}
+
+type NFSOptions struct {
+	Path       string `json:"path"`
+	Server     string `json:"server"`
+	ForceReset bool   `json:"forceReset,omitempty"`
 }
 
 type SnapshotConfig struct {
@@ -68,19 +95,19 @@ func (h *Handler) UpdateGlobalSnapshotSettings(w http.ResponseWriter, r *http.Re
 	if err := json.NewDecoder(r.Body).Decode(&updateGlobalSnapshotSettingsRequest); err != nil {
 		logger.Error(err)
 		globalSnapshotSettingsResponse.Error = "failed to decode request body"
-		JSON(w, 400, globalSnapshotSettingsResponse)
+		JSON(w, http.StatusBadRequest, globalSnapshotSettingsResponse)
 		return
 	}
 
-	veleroStatus, err := snapshot.DetectVelero()
+	veleroStatus, err := kotssnapshot.DetectVelero()
 	if err != nil {
 		logger.Error(err)
 		globalSnapshotSettingsResponse.Error = "failed to detect velero"
-		JSON(w, 500, globalSnapshotSettingsResponse)
+		JSON(w, http.StatusInternalServerError, globalSnapshotSettingsResponse)
 		return
 	}
 	if veleroStatus == nil {
-		JSON(w, 200, globalSnapshotSettingsResponse)
+		JSON(w, http.StatusOK, globalSnapshotSettingsResponse)
 		return
 	}
 
@@ -91,257 +118,71 @@ func (h *Handler) UpdateGlobalSnapshotSettings(w http.ResponseWriter, r *http.Re
 	globalSnapshotSettingsResponse.IsResticRunning = veleroStatus.ResticStatus == "Ready"
 	globalSnapshotSettingsResponse.IsKurl = kurl.IsKurl()
 
-	store, err := snapshot.GetGlobalStore(nil)
-	if err != nil {
-		logger.Error(err)
-		globalSnapshotSettingsResponse.Error = "failed to get store"
-		JSON(w, 500, globalSnapshotSettingsResponse)
-		return
-	}
-
-	store.Provider = updateGlobalSnapshotSettingsRequest.Provider
-	store.Bucket = updateGlobalSnapshotSettingsRequest.Bucket
-	store.Path = updateGlobalSnapshotSettingsRequest.Path
-
-	if updateGlobalSnapshotSettingsRequest.AWS != nil {
-		if store.AWS == nil {
-			store.AWS = &snapshottypes.StoreAWS{}
-		}
-		store.Azure = nil
-		store.Google = nil
-		store.Other = nil
-		store.Internal = nil
-
-		store.AWS.UseInstanceRole = updateGlobalSnapshotSettingsRequest.AWS.UseInstanceRole
-		if store.AWS.UseInstanceRole {
-			store.AWS.AccessKeyID = ""
-			store.AWS.SecretAccessKey = ""
-		} else {
-			if updateGlobalSnapshotSettingsRequest.AWS.AccessKeyID != "" {
-				store.AWS.AccessKeyID = updateGlobalSnapshotSettingsRequest.AWS.AccessKeyID
-			}
-			if updateGlobalSnapshotSettingsRequest.AWS.SecretAccessKey != "" {
-				if strings.Contains(updateGlobalSnapshotSettingsRequest.AWS.SecretAccessKey, "REDACTED") {
-					logger.Error(err)
-					globalSnapshotSettingsResponse.Error = "invalid aws secret access key"
-					JSON(w, 400, globalSnapshotSettingsResponse)
-					return
-				}
-				store.AWS.SecretAccessKey = updateGlobalSnapshotSettingsRequest.AWS.SecretAccessKey
-			}
-			if updateGlobalSnapshotSettingsRequest.AWS.Region != "" {
-				store.AWS.Region = updateGlobalSnapshotSettingsRequest.AWS.Region
-			}
-		}
-
-		if !store.AWS.UseInstanceRole {
-			if store.AWS.AccessKeyID == "" || store.AWS.SecretAccessKey == "" || store.AWS.Region == "" {
-				globalSnapshotSettingsResponse.Error = "missing access key id and/or secret access key and/or region"
-				JSON(w, 400, globalSnapshotSettingsResponse)
-				return
-			}
-		}
-	} else if updateGlobalSnapshotSettingsRequest.Google != nil {
-		if store.Google == nil {
-			store.Google = &snapshottypes.StoreGoogle{}
-		}
-		store.AWS = nil
-		store.Azure = nil
-		store.Other = nil
-		store.Internal = nil
-
-		store.Google.UseInstanceRole = updateGlobalSnapshotSettingsRequest.Google.UseInstanceRole
-		if store.Google.UseInstanceRole {
-			store.Google.JSONFile = ""
-			if updateGlobalSnapshotSettingsRequest.Google.ServiceAccount != "" {
-				store.Google.ServiceAccount = updateGlobalSnapshotSettingsRequest.Google.ServiceAccount
-			}
-		} else {
-			if updateGlobalSnapshotSettingsRequest.Google.JSONFile != "" {
-				if strings.Contains(updateGlobalSnapshotSettingsRequest.Google.JSONFile, "REDACTED") {
-					logger.Error(err)
-					globalSnapshotSettingsResponse.Error = "invalid JSON file"
-					JSON(w, 400, globalSnapshotSettingsResponse)
-					return
-				}
-				store.Google.JSONFile = updateGlobalSnapshotSettingsRequest.Google.JSONFile
-			}
-		}
-
-		if store.Google.UseInstanceRole {
-			if store.Google.ServiceAccount == "" {
-				globalSnapshotSettingsResponse.Error = "missing service account"
-				JSON(w, 400, globalSnapshotSettingsResponse)
-				return
-			}
-		} else {
-			if store.Google.JSONFile == "" {
-				globalSnapshotSettingsResponse.Error = "missing JSON file"
-				JSON(w, 400, globalSnapshotSettingsResponse)
-				return
-			}
-		}
-
-	} else if updateGlobalSnapshotSettingsRequest.Azure != nil {
-		if store.Azure == nil {
-			store.Azure = &snapshottypes.StoreAzure{}
-		}
-		store.AWS = nil
-		store.Google = nil
-		store.Other = nil
-		store.Internal = nil
-
-		if updateGlobalSnapshotSettingsRequest.Azure.ResourceGroup != "" {
-			store.Azure.ResourceGroup = updateGlobalSnapshotSettingsRequest.Azure.ResourceGroup
-		}
-		if updateGlobalSnapshotSettingsRequest.Azure.SubscriptionID != "" {
-			store.Azure.SubscriptionID = updateGlobalSnapshotSettingsRequest.Azure.SubscriptionID
-		}
-		if updateGlobalSnapshotSettingsRequest.Azure.TenantID != "" {
-			store.Azure.TenantID = updateGlobalSnapshotSettingsRequest.Azure.TenantID
-		}
-		if updateGlobalSnapshotSettingsRequest.Azure.ClientID != "" {
-			store.Azure.ClientID = updateGlobalSnapshotSettingsRequest.Azure.ClientID
-		}
-		if updateGlobalSnapshotSettingsRequest.Azure.ClientSecret != "" {
-			if strings.Contains(updateGlobalSnapshotSettingsRequest.Azure.ClientSecret, "REDACTED") {
-				logger.Error(err)
-				globalSnapshotSettingsResponse.Error = "invalid client secret"
-				JSON(w, 400, globalSnapshotSettingsResponse)
-				return
-			}
-			store.Azure.ClientSecret = updateGlobalSnapshotSettingsRequest.Azure.ClientSecret
-		}
-		if updateGlobalSnapshotSettingsRequest.Azure.CloudName != "" {
-			store.Azure.CloudName = updateGlobalSnapshotSettingsRequest.Azure.CloudName
-		}
-		if updateGlobalSnapshotSettingsRequest.Azure.StorageAccount != "" {
-			store.Azure.StorageAccount = updateGlobalSnapshotSettingsRequest.Azure.StorageAccount
-		}
-
-	} else if updateGlobalSnapshotSettingsRequest.Other != nil {
-		if store.Other == nil {
-			store.Other = &snapshottypes.StoreOther{}
-		}
-		store.AWS = nil
-		store.Google = nil
-		store.Azure = nil
-		store.Internal = nil
-
-		store.Provider = "aws"
-		if updateGlobalSnapshotSettingsRequest.Other.AccessKeyID != "" {
-			store.Other.AccessKeyID = updateGlobalSnapshotSettingsRequest.Other.AccessKeyID
-		}
-		if updateGlobalSnapshotSettingsRequest.Other.SecretAccessKey != "" {
-			if strings.Contains(updateGlobalSnapshotSettingsRequest.Other.SecretAccessKey, "REDACTED") {
-				logger.Error(err)
-				globalSnapshotSettingsResponse.Error = "invalid secret access key"
-				JSON(w, 400, globalSnapshotSettingsResponse)
-				return
-			}
-			store.Other.SecretAccessKey = updateGlobalSnapshotSettingsRequest.Other.SecretAccessKey
-		}
-		if updateGlobalSnapshotSettingsRequest.Other.Region != "" {
-			store.Other.Region = updateGlobalSnapshotSettingsRequest.Other.Region
-		}
-		if updateGlobalSnapshotSettingsRequest.Other.Endpoint != "" {
-			store.Other.Endpoint = updateGlobalSnapshotSettingsRequest.Other.Endpoint
-		}
-
-		if store.Other.AccessKeyID == "" || store.Other.SecretAccessKey == "" || store.Other.Endpoint == "" || store.Other.Region == "" {
-			globalSnapshotSettingsResponse.Error = "access key, secret key, endpoint and region are required"
-			JSON(w, 400, globalSnapshotSettingsResponse)
-			return
-		}
-	} else if updateGlobalSnapshotSettingsRequest.Internal {
-		if !kurl.IsKurl() {
-			globalSnapshotSettingsResponse.Error = "cannot use internal storage on a non-kurl cluster"
-			JSON(w, 400, globalSnapshotSettingsResponse)
-			return
-		}
-
-		if store.Internal == nil {
-			store.Internal = &snapshottypes.StoreInternal{}
-		}
-		store.AWS = nil
-		store.Google = nil
-		store.Azure = nil
-		store.Other = nil
-
-		secret, err := kurl.GetS3Secret()
+	if updateGlobalSnapshotSettingsRequest.NFS != nil {
+		// make sure NFS provider is configured and deployed first
+		clientset, err := k8s.Clientset()
 		if err != nil {
+			err = errors.Wrap(err, "failed to get k8s client set")
 			logger.Error(err)
-			globalSnapshotSettingsResponse.Error = err.Error()
-			JSON(w, 500, globalSnapshotSettingsResponse)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if secret == nil {
-			logger.Error(errors.New("s3 secret does not exist"))
-			globalSnapshotSettingsResponse.Error = "s3 secret does not exist"
-			JSON(w, 500, globalSnapshotSettingsResponse)
+		if err := configureNFSProvider(r.Context(), clientset, updateGlobalSnapshotSettingsRequest.NFS); err != nil {
+			if _, ok := errors.Cause(err).(*kotssnapshot.ResetNFSError); ok {
+				globalSnapshotSettingsResponse.Error = err.Error()
+				JSON(w, http.StatusConflict, globalSnapshotSettingsResponse)
+				return
+			}
+			err = errors.Wrap(err, "failed to configure nfs provider")
+			logger.Error(err)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
-		store.Provider = "aws"
-		store.Bucket = string(secret.Data["velero-local-bucket"])
-		store.Path = ""
-
-		store.Internal.AccessKeyID = string(secret.Data["access-key-id"])
-		store.Internal.SecretAccessKey = string(secret.Data["secret-access-key"])
-		store.Internal.Endpoint = string(secret.Data["endpoint"])
-		store.Internal.ObjectStoreClusterIP = string(secret.Data["object-store-cluster-ip"])
-		store.Internal.Region = "us-east-1"
 	}
 
-	if err := snapshot.ValidateStore(store); err != nil {
-		logger.Error(err)
-		globalSnapshotSettingsResponse.Error = errors.Cause(err).Error()
-		JSON(w, 400, globalSnapshotSettingsResponse)
-		return
-	}
+	// update/configure store
+	options := kotssnapshot.ConfigureStoreOptions{
+		Provider: updateGlobalSnapshotSettingsRequest.Provider,
+		Bucket:   updateGlobalSnapshotSettingsRequest.Bucket,
+		Path:     updateGlobalSnapshotSettingsRequest.Path,
 
-	updatedBackupStorageLocation, err := snapshot.UpdateGlobalStore(store)
+		AWS:      updateGlobalSnapshotSettingsRequest.AWS,
+		Google:   updateGlobalSnapshotSettingsRequest.Google,
+		Azure:    updateGlobalSnapshotSettingsRequest.Azure,
+		Other:    updateGlobalSnapshotSettingsRequest.Other,
+		Internal: updateGlobalSnapshotSettingsRequest.Internal,
+		NFS:      updateGlobalSnapshotSettingsRequest.NFS != nil,
+
+		KotsadmNamespace: os.Getenv("POD_NAMESPACE"),
+	}
+	updatedStore, err := kotssnapshot.ConfigureStore(options)
 	if err != nil {
+		if _, ok := errors.Cause(err).(*kotssnapshot.InvalidStoreDataError); ok {
+			logger.Error(err)
+			JSON(w, http.StatusBadRequest, NewErrorResponse(err))
+			return
+		}
+		err = errors.Wrap(err, "failed to configure snapshots")
 		logger.Error(err)
-		globalSnapshotSettingsResponse.Error = "failed to update global store"
-		JSON(w, 500, globalSnapshotSettingsResponse)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	if err := snapshot.ResetResticRepositories(); err != nil {
-		logger.Error(err)
-		globalSnapshotSettingsResponse.Error = "failed to try to reset restic repositories"
-		JSON(w, 500, globalSnapshotSettingsResponse)
-		return
-	}
-
-	// most plugins (all?) require that velero be restared after updating
-	if err := snapshot.RestartVelero(); err != nil {
-		logger.Error(err)
-		globalSnapshotSettingsResponse.Error = "failed to try to restart velero"
-		JSON(w, 500, globalSnapshotSettingsResponse)
-		return
-	}
-
-	updatedStore, err := snapshot.GetGlobalStore(updatedBackupStorageLocation)
-	if err != nil {
-		logger.Error(err)
-		globalSnapshotSettingsResponse.Error = "failed to update store"
-		JSON(w, 500, globalSnapshotSettingsResponse)
-		return
-	}
-
-	if err := snapshot.Redact(updatedStore); err != nil {
-		logger.Error(err)
-		globalSnapshotSettingsResponse.Error = "failed to redact"
-		JSON(w, 500, globalSnapshotSettingsResponse)
-		return
+	if updatedStore.NFS != nil {
+		nfsConfig, err := kotssnapshot.GetCurrentNFSConfig(r.Context(), os.Getenv("POD_NAMESPACE"))
+		if err != nil {
+			err = errors.Wrap(err, "failed to get nfs config")
+			logger.Error(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		globalSnapshotSettingsResponse.NFSConfig = nfsConfig
 	}
 
 	globalSnapshotSettingsResponse.Store = updatedStore
 	globalSnapshotSettingsResponse.Success = true
 
-	JSON(w, 200, globalSnapshotSettingsResponse)
+	JSON(w, http.StatusOK, globalSnapshotSettingsResponse)
 }
 
 func (h *Handler) GetGlobalSnapshotSettings(w http.ResponseWriter, r *http.Request) {
@@ -349,15 +190,15 @@ func (h *Handler) GetGlobalSnapshotSettings(w http.ResponseWriter, r *http.Reque
 		Success: false,
 	}
 
-	veleroStatus, err := snapshot.DetectVelero()
+	veleroStatus, err := kotssnapshot.DetectVelero()
 	if err != nil {
 		logger.Error(err)
 		globalSnapshotSettingsResponse.Error = "failed to detect velero"
-		JSON(w, 500, globalSnapshotSettingsResponse)
+		JSON(w, http.StatusInternalServerError, globalSnapshotSettingsResponse)
 		return
 	}
 	if veleroStatus == nil {
-		JSON(w, 200, globalSnapshotSettingsResponse)
+		JSON(w, http.StatusOK, globalSnapshotSettingsResponse)
 		return
 	}
 
@@ -368,25 +209,114 @@ func (h *Handler) GetGlobalSnapshotSettings(w http.ResponseWriter, r *http.Reque
 	globalSnapshotSettingsResponse.IsResticRunning = veleroStatus.ResticStatus == "Ready"
 	globalSnapshotSettingsResponse.IsKurl = kurl.IsKurl()
 
-	store, err := snapshot.GetGlobalStore(nil)
+	store, err := kotssnapshot.GetGlobalStore(nil)
 	if err != nil {
 		logger.Error(err)
 		globalSnapshotSettingsResponse.Error = "failed to get store"
-		JSON(w, 500, globalSnapshotSettingsResponse)
+		JSON(w, http.StatusInternalServerError, globalSnapshotSettingsResponse)
 		return
 	}
 
-	if err := snapshot.Redact(store); err != nil {
+	if err := kotssnapshot.Redact(store); err != nil {
 		logger.Error(err)
 		globalSnapshotSettingsResponse.Error = "failed to redact"
-		JSON(w, 500, globalSnapshotSettingsResponse)
+		JSON(w, http.StatusInternalServerError, globalSnapshotSettingsResponse)
 		return
+	}
+
+	if store.NFS != nil {
+		nfsConfig, err := kotssnapshot.GetCurrentNFSConfig(r.Context(), os.Getenv("POD_NAMESPACE"))
+		if err != nil {
+			logger.Error(err)
+			globalSnapshotSettingsResponse.Error = "failed to get nfs config"
+			JSON(w, http.StatusInternalServerError, globalSnapshotSettingsResponse)
+			return
+		}
+		globalSnapshotSettingsResponse.NFSConfig = nfsConfig
 	}
 
 	globalSnapshotSettingsResponse.Store = store
 	globalSnapshotSettingsResponse.Success = true
 
-	JSON(w, 200, globalSnapshotSettingsResponse)
+	JSON(w, http.StatusOK, globalSnapshotSettingsResponse)
+}
+
+func (h *Handler) ConfigureNFSSnapshotsProvider(w http.ResponseWriter, r *http.Request) {
+	response := ConfigureNFSSnapshotsProviderResponse{
+		Success: false,
+	}
+
+	request := ConfigureNFSSnapshotsProviderRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		errMsg := "failed to decode request body"
+		logger.Error(errors.Wrap(err, errMsg))
+		response.Error = errMsg
+		JSON(w, http.StatusBadRequest, response)
+		return
+	}
+
+	clientset, err := k8s.Clientset()
+	if err != nil {
+		errMsg := "failed to get k8s client set"
+		response.Error = errMsg
+		logger.Error(errors.Wrap(err, errMsg))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// TODO: do this asynchronously and use task status to report back
+
+	if err := configureNFSProvider(r.Context(), clientset, &request.NFSOptions); err != nil {
+		if _, ok := errors.Cause(err).(*kotssnapshot.ResetNFSError); ok {
+			response.Error = err.Error()
+			JSON(w, http.StatusConflict, response)
+			return
+		}
+		errMsg := "failed to configure nfs provider"
+		response.Error = errMsg
+		logger.Error(errors.Wrap(err, errMsg))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	response.Success = true
+	response.Namespace = os.Getenv("POD_NAMESPACE")
+
+	JSON(w, http.StatusOK, response)
+}
+
+func configureNFSProvider(ctx context.Context, clientset kubernetes.Interface, opts *NFSOptions) error {
+	namespace := os.Getenv("POD_NAMESPACE")
+
+	registryOptions, err := kotsadm.GetKotsadmOptionsFromCluster(namespace, clientset)
+	if err != nil {
+		return errors.Wrap(err, "failed to get kotsadm options from cluster")
+	}
+
+	deployOptions := kotssnapshot.NFSDeployOptions{
+		Namespace:   namespace,
+		IsOpenShift: k8sutil.IsOpenShift(clientset),
+		ForceReset:  opts.ForceReset,
+		NFSConfig: kotssnapshottypes.NFSConfig{
+			Path:   opts.Path,
+			Server: opts.Server,
+		},
+	}
+	if err := kotssnapshot.DeployNFSMinio(ctx, clientset, deployOptions, registryOptions); err != nil {
+		return err
+	}
+
+	err = k8sutil.WaitForDeploymentReady(ctx, clientset, namespace, kotssnapshot.NFSMinioDeploymentName, time.Minute*3)
+	if err != nil {
+		return errors.Wrap(err, "failed to wait for nfs minio")
+	}
+
+	err = kotssnapshot.CreateNFSMinioBucket(ctx, clientset, namespace)
+	if err != nil {
+		return errors.Wrap(err, "failed to create default bucket")
+	}
+
+	return nil
 }
 
 func (h *Handler) GetSnapshotConfig(w http.ResponseWriter, r *http.Request) {
@@ -434,7 +364,7 @@ func (h *Handler) GetSnapshotConfig(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetVeleroStatus(w http.ResponseWriter, r *http.Request) {
 	getVeleroStatusResponse := VeleroStatus{}
 
-	detectVelero, err := snapshot.DetectVelero()
+	detectVelero, err := kotssnapshot.DetectVelero()
 	if err != nil {
 		logger.Error(err)
 		getVeleroStatusResponse.IsVeleroInstalled = false
@@ -729,7 +659,7 @@ func (h *Handler) SaveInstanceSnapshotConfig(w http.ResponseWriter, r *http.Requ
 }
 
 func requiresKotsadmVeleroAccess(w http.ResponseWriter, r *http.Request) error {
-	requiresVeleroAccess, veleroNamespace, err := snapshot.CheckKotsadmVeleroAccess()
+	requiresVeleroAccess, veleroNamespace, err := kotssnapshot.CheckKotsadmVeleroAccess()
 	if err != nil {
 		errMsg := "failed to check if kotsadm requires access to velero"
 		logger.Error(errors.Wrap(err, errMsg))
