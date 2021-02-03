@@ -17,7 +17,7 @@ class PreflightResultPage extends Component {
     showWarningModal: false,
     getKotsPreflightResultJob: new Repeater(),
     preflightResultData: null,
-    errorMessage: "",
+    errorMessage: ""
   };
 
   componentDidMount() {
@@ -69,7 +69,7 @@ class PreflightResultPage extends Component {
         },
         method: "POST",
       });
-    } catch(err) {
+    } catch (err) {
       console.log(err);
       this.setState({
         errorMessage: err ? `Encountered an error while trying to deploy version: ${err.message}` : "Something went wrong, please try again."
@@ -215,7 +215,7 @@ class PreflightResultPage extends Component {
       this.setState({
         preflightResultData: response.preflightResult,
       });
-    } catch(err) {
+    } catch (err) {
       console.log(err);
       this.setState({
         errorMessage: err ? `Encountered an error while fetching preflight results: ${err.message}` : "Something went wrong, please try again."
@@ -247,12 +247,46 @@ class PreflightResultPage extends Component {
       this.setState({
         preflightResultData: response.preflightResult,
       });
-    } catch(err) {
+    } catch (err) {
       console.log(err);
       this.setState({
         errorMessage: err ? `Encountered an error while fetching preflight results: ${err.message}` : "Something went wrong, please try again."
       });
     }
+  }
+
+  sendSkipPreflightsData = async () => {
+    const { slug } = this.props.match.params;
+
+    this.setState({ errorMessage: "" });
+
+    fetch(`${window.env.API_ENDPOINT}/app/${slug}/preflight/skip`, {
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": Utilities.getToken(),
+      },
+      method: "POST",
+    })
+      .then((res) => {
+        if (res.status === 200) {
+          this.setState({ errorMessage: "", success: true }, () => {
+            this.props.history.push(`/app/${slug}`)
+          })
+        } else {
+          this.setState({
+            errorMessage: `Encountered an error while trying to send preflight data. Status ${res.status}`,
+            success: false
+          });
+        }
+      })
+      .catch((err) => {
+        console.log(err);
+        this.setState({
+          errorMessage: err ? `Encountered an error while trying to send preflight data: ${err.message}` : "Something went wrong, please try again.",
+          success: false
+        });
+      });
   }
 
   render() {
@@ -270,7 +304,7 @@ class PreflightResultPage extends Component {
     const hasResult = size(preflightJSON.results) > 0;
     const hasErrors = size(preflightJSON.errors) > 0;
     const preflightState = getPreflightResultState(preflightJSON);
-  
+
     return (
       <div className="flex-column flex1 container">
         <Helmet>
@@ -279,8 +313,8 @@ class PreflightResultPage extends Component {
         <div className="flex1 flex u-overflow--auto">
           <div className="PreflightChecks--wrapper flex1 flex-column u-paddingTop--30">
             {this.props.history.location.pathname.includes("version-history") &&
-            <div className="u-fontWeight--bold u-color--royalBlue u-cursor--pointer" onClick={() => this.props.history.goBack()}>
-              <span className="icon clickable backArrow-icon u-marginRight--10" style={{ verticalAlign: "0" }} />
+              <div className="u-fontWeight--bold u-color--royalBlue u-cursor--pointer" onClick={() => this.props.history.goBack()}>
+                <span className="icon clickable backArrow-icon u-marginRight--10" style={{ verticalAlign: "0" }} />
                 Back
             </div>}
             <div className="u-minWidth--full u-marginTop--20 flex-column flex1 u-position--relative">
@@ -292,7 +326,7 @@ class PreflightResultPage extends Component {
                     <p className="error">{errorMessage}</p>
                   </div>
                 </div>
-              : null}
+                : null}
               <p className="u-fontSize--header u-color--tuna u-fontWeight--bold">
                 Preflight checks
               </p>
@@ -355,9 +389,7 @@ class PreflightResultPage extends Component {
             <p className="u-fontSize--normal u-color--dustyGray u-lineHeight--normal u-marginBottom--20">Skipping preflight checks will not cancel them. They will continue to run in the background. Do you want to continue to the {slug} dashboard? </p>
             <div className="u-marginTop--10 flex justifyContent--flexEnd">
               <button type="button" className="btn secondary" onClick={this.hideSkipModal}>Close</button>
-              <Link to={`/app/${slug}`}>
-                <button type="button" className="btn blue primary u-marginLeft--10">Go to Dashboard</button>
-              </Link>
+              <button type="button" className="btn blue primary u-marginLeft--10" onClick={this.sendSkipPreflightsData}>Go to Dashboard</button>
             </div>
           </div>
         </Modal>

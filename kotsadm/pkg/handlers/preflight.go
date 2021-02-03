@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 
@@ -13,6 +16,7 @@ import (
 	"github.com/replicatedhq/kots/kotsadm/pkg/preflight"
 	preflighttypes "github.com/replicatedhq/kots/kotsadm/pkg/preflight/types"
 	"github.com/replicatedhq/kots/kotsadm/pkg/store"
+	kotsv1beta1 "github.com/replicatedhq/kots/kotskinds/apis/kots/v1beta1"
 	"github.com/replicatedhq/kots/pkg/kotsutil"
 )
 
@@ -278,4 +282,84 @@ func (h *Handler) PostPreflightStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(204)
+}
+
+func (h *Handler) SkipPreflights(w http.ResponseWriter, r *http.Request) {
+	appSlug := mux.Vars(r)["appSlug"]
+
+	foundApp, err := store.GetStore().GetAppFromSlug(appSlug)
+	if err != nil {
+		logger.Error(err)
+		w.WriteHeader(500)
+		return
+	}
+
+	license, err := store.GetStore().GetLatestLicenseForApp(foundApp.ID)
+	if err != nil {
+		logger.Error(err)
+		w.WriteHeader(500)
+		return
+	}
+
+	downstreams, err := store.GetStore().ListDownstreamsForApp(foundApp.ID)
+	if err != nil {
+		err = errors.Wrap(err, "failed to list downstreams for app")
+		logger.Error(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if len(downstreams) == 0 {
+		err = errors.New("no downstreams for app")
+		logger.Error(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	clusterID := downstreams[0].ClusterID
+
+	if err := sendPreflightsReportToReplicatedApp(license, appSlug, clusterID, 0, true, ""); err != nil {
+		err = errors.Wrap(err, "failed to send preflights data to replicated app")
+		logger.Error(err)
+		w.WriteHeader(500)
+		return
+	}
+
+	JSON(w, 200, struct{}{})
+}
+
+func sendPreflightsReportToReplicatedApp(license *kotsv1beta1.License, appSlug string, clusterID string, sequence int, skipPreflights bool, installStatus string) error {
+	urlValues := url.Values{}
+
+	sequenceToStr := fmt.Sprintf("%d", sequence)
+	skipPreflightsToStr := fmt.Sprintf("%t", skipPreflights)
+
+	urlValues.Set("sequence", sequenceToStr)
+	urlValues.Set("skipPreflights", skipPreflightsToStr)
+	urlValues.Set("installStatus", installStatus)
+
+	url := fmt.Sprintf("%s/preflights/reporting/%s/%s?%s", license.Spec.Endpoint, appSlug, clusterID, urlValues.Encode())
+
+	var buf bytes.Buffer
+	postReq, err := http.NewRequest("POST", url, &buf)
+	if err != nil {
+		return errors.Wrap(err, "failed to call newrequest")
+	}
+	postReq.Header.Add("Authorization", license.Spec.LicenseID)
+	postReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(postReq)
+	if err != nil {
+		return errors.Wrap(err, "failed to send preflights reports")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 201 {
+		return errors.Errorf("Unexpected status code %d", resp.StatusCode)
+	}
+
+	_, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return errors.Wrap(err, "failed to read")
+	}
+
+	return nil
 }
