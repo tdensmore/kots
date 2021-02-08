@@ -228,6 +228,17 @@ func CreateAppFromOnline(pendingApp *types.PendingApp, upstreamURI string, isAut
 		if err := preflight.Run(pendingApp.ID, pendingApp.Slug, newSequence, false, tmpRoot); err != nil {
 			return nil, errors.Wrap(err, "failed to start preflights")
 		}
+		isFailedPreflight := false
+		if err := reporting.PreflightInfoThreadSend(pendingApp.ID, pendingApp.Slug, int(newSequence), skipPreflights, isFailedPreflight); err != nil {
+			logger.Error(errors.Wrap(err, "failed to start preflight thread"))
+			return
+		}
+	} else {
+		isFailedPreflight := false
+		if err := reporting.PreflightInfoThreadSend(pendingApp.ID, pendingApp.Slug, int(newSequence), skipPreflights, isFailedPreflight); err != nil {
+			logger.Error(errors.Wrap(err, "failed to start preflight thread"))
+			return
+		}
 	}
 
 	return kotsKinds, nil

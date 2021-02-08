@@ -1,12 +1,9 @@
 package handlers
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -17,10 +14,10 @@ import (
 	apptypes "github.com/replicatedhq/kots/kotsadm/pkg/app/types"
 	"github.com/replicatedhq/kots/kotsadm/pkg/downstream"
 	"github.com/replicatedhq/kots/kotsadm/pkg/logger"
+	"github.com/replicatedhq/kots/kotsadm/pkg/reporting"
 	"github.com/replicatedhq/kots/kotsadm/pkg/store"
 	"github.com/replicatedhq/kots/kotsadm/pkg/supportbundle"
 	"github.com/replicatedhq/kots/kotsadm/pkg/version"
-	kotsv1beta1 "github.com/replicatedhq/kots/kotskinds/apis/kots/v1beta1"
 	downstreamtypes "github.com/replicatedhq/kots/pkg/api/downstream/types"
 	"github.com/replicatedhq/kots/pkg/kotsutil"
 	"go.uber.org/zap"
@@ -72,73 +69,27 @@ func (h *Handler) DeployAppVersion(w http.ResponseWriter, r *http.Request) {
 
 	downstreams, err := store.GetStore().ListDownstreamsForApp(a.ID)
 	if err != nil {
-		err = errors.Wrap(err, "failed to list downstreams for app")
-		logger.Error(err)
-		w.WriteHeader(http.StatusInternalServerError)
+		logger.Error(errors.Wrap(err, "failed to list downstreams for app"))
 		return
 	} else if len(downstreams) == 0 {
-		err = errors.New("no downstreams for app")
-		logger.Error(err)
-		w.WriteHeader(http.StatusInternalServerError)
+		logger.Error(errors.Wrap(err, "no downstreams for app"))
 		return
 	}
 
 	if request.IsSkipPreflights {
-		go func() {
-			<-time.After(20 * time.Second)
-			license, err := store.GetStore().GetLatestLicenseForApp(a.ID)
-			if err != nil {
-				logger.Error(err)
-				w.WriteHeader(500)
-				return
-			}
-
-			clusterID := downstreams[0].ClusterID
-
-			currentVersion, err := downstream.GetCurrentVersion(a.ID, clusterID)
-			if err != nil {
-				err = errors.Wrap(err, "failed to get current downstream version")
-				logger.Error(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			err = updatePreflightsReportToReplicatedApp(license, appSlug, clusterID, sequence, true, currentVersion.Status)
-			if err != nil {
-				err = errors.Wrap(err, "failed to update preflights reports")
-				logger.Error(err)
-				return
-			}
-		}()
+		isFailedPreflight := false
+		if err := reporting.PreflightInfoThreadSend(a.ID, appSlug, int(sequence), request.IsSkipPreflights, isFailedPreflight); err != nil {
+			logger.Error(errors.Wrap(err, "failed to start preflight thread"))
+			return
+		}
 	}
 
 	if request.ContinueWithFailedPreflights && !request.IsSkipPreflights {
-		go func() {
-			<-time.After(20 * time.Second)
-			license, err := store.GetStore().GetLatestLicenseForApp(a.ID)
-			if err != nil {
-				logger.Error(err)
-				w.WriteHeader(500)
-				return
-			}
-
-			clusterID := downstreams[0].ClusterID
-
-			currentVersion, err := downstream.GetCurrentVersion(a.ID, clusterID)
-			if err != nil {
-				err = errors.Wrap(err, "failed to get current downstream version")
-				logger.Error(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			err = updatePreflightsReportToReplicatedApp(license, appSlug, clusterID, sequence, false, currentVersion.Status)
-			if err != nil {
-				err = errors.Wrap(err, "failed to update preflights reports")
-				logger.Error(err)
-				return
-			}
-		}()
+		isFailedPreflight := true
+		if err := reporting.PreflightInfoThreadSend(a.ID, appSlug, int(sequence), request.IsSkipPreflights, isFailedPreflight); err != nil {
+			logger.Error(errors.Wrap(err, "failed to start preflight thread"))
+			return
+		}
 	}
 
 	if err := downstream.DeleteDownstreamDeployStatus(a.ID, downstreams[0].ClusterID, int64(sequence)); err != nil {
@@ -305,42 +256,4 @@ func (h *Handler) UpdateUndeployResult(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	return
-}
-
-func updatePreflightsReportToReplicatedApp(license *kotsv1beta1.License, appSlug string, clusterID string, sequence int, skipPreflights bool, installStatus string) error {
-	urlValues := url.Values{}
-
-	sequenceToStr := fmt.Sprintf("%d", sequence)
-	skipPreflightsToStr := fmt.Sprintf("%t", skipPreflights)
-
-	urlValues.Set("sequence", sequenceToStr)
-	urlValues.Set("skipPreflights", skipPreflightsToStr)
-	urlValues.Set("installStatus", installStatus)
-
-	url := fmt.Sprintf("%s/preflights/reporting/update/%s/%s?%s", license.Spec.Endpoint, appSlug, clusterID, urlValues.Encode())
-
-	var buf bytes.Buffer
-	postReq, err := http.NewRequest("POST", url, &buf)
-	if err != nil {
-		return errors.Wrap(err, "failed to call newrequest")
-	}
-	postReq.Header.Add("Authorization", license.Spec.LicenseID)
-	postReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(postReq)
-	if err != nil {
-		return errors.Wrap(err, "failed to send preflights reports")
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 201 {
-		return errors.Errorf("Unexpected status code %d", resp.StatusCode)
-	}
-
-	_, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return errors.Wrap(err, "failed to read")
-	}
-
-	return nil
 }

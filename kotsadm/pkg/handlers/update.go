@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/replicatedhq/kots/kotsadm/pkg/airgap"
 	"github.com/replicatedhq/kots/kotsadm/pkg/logger"
+	"github.com/replicatedhq/kots/kotsadm/pkg/reporting"
 	"github.com/replicatedhq/kots/kotsadm/pkg/store"
 	"github.com/replicatedhq/kots/kotsadm/pkg/updatechecker"
 	"github.com/replicatedhq/kots/pkg/util"
@@ -56,6 +57,15 @@ func (h *Handler) AppUpdateCheck(w http.ResponseWriter, r *http.Request) {
 		appUpdateCheckResponse := AppUpdateCheckResponse{
 			AvailableUpdates:   availableUpdates,
 			CurrentAppSequence: foundApp.CurrentSequence,
+		}
+
+		if skipPreflights {
+			isFailedPreflight := false
+			err = reporting.PreflightInfoThreadSend(foundApp.ID, foundApp.Slug, int(foundApp.CurrentSequence), skipPreflights, isFailedPreflight)
+			if err != nil {
+				logger.Debugf("failed to update preflights reports", err)
+				return
+			}
 		}
 
 		JSON(w, http.StatusOK, appUpdateCheckResponse)
