@@ -59,13 +59,12 @@ func (h *Handler) AppUpdateCheck(w http.ResponseWriter, r *http.Request) {
 			CurrentAppSequence: foundApp.CurrentSequence,
 		}
 
-		if skipPreflights {
-			isFailedPreflight := false
-			err = reporting.PreflightInfoThreadSend(foundApp.ID, foundApp.Slug, int(foundApp.CurrentSequence), skipPreflights, isFailedPreflight)
-			if err != nil {
-				logger.Debugf("failed to update preflights reports", err)
-				return
-			}
+		// preflights reporting
+		isUpdate := true
+		err = reporting.SendPreflightInfo(foundApp.ID, int(foundApp.CurrentSequence), skipPreflights, isUpdate)
+		if err != nil {
+			logger.Debugf("failed to update preflights reports", err)
+			return
 		}
 
 		JSON(w, http.StatusOK, appUpdateCheckResponse)

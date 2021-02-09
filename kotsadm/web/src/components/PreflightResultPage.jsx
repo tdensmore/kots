@@ -47,7 +47,7 @@ class PreflightResultPage extends Component {
           return;
         }
         const sequence = match.params.sequence ? parseInt(match.params.sequence, 10) : 0;
-        await this.deployKotsVersion(slug, sequence);
+        await this.deployKotsVersion(slug, sequence, force);
       }
 
       history.push(`/app/${slug}`);
@@ -59,7 +59,7 @@ class PreflightResultPage extends Component {
     }
   }
 
-  deployKotsVersion = async (appSlug, sequence) => {
+  deployKotsVersion = async (appSlug, sequence, force) => {
     this.setState({ errorMessage: "" });
     try {
       await fetch(`${window.env.API_ENDPOINT}/app/${appSlug}/sequence/${sequence}/deploy`, {
@@ -68,6 +68,10 @@ class PreflightResultPage extends Component {
           "Content-Type": "application/json",
         },
         method: "POST",
+        body: JSON.stringify({ 
+          isSkipPreflights: false,
+          continueWithFailedPreflights: force ? true : false
+        }),
       });
     } catch (err) {
       console.log(err);
@@ -258,8 +262,6 @@ class PreflightResultPage extends Component {
   sendSkipPreflightsData = async () => {
     const { slug } = this.props.match.params;
 
-    this.setState({ errorMessage: "" });
-
     fetch(`${window.env.API_ENDPOINT}/app/${slug}/preflight/skip`, {
       headers: {
         "Content-Type": "application/json",
@@ -270,22 +272,14 @@ class PreflightResultPage extends Component {
     })
       .then((res) => {
         if (res.status === 200) {
-          this.setState({ errorMessage: "", success: true }, () => {
-            this.props.history.push(`/app/${slug}`)
-          })
+          this.props.history.push(`/app/${slug}`)
         } else {
-          this.setState({
-            errorMessage: `Encountered an error while trying to send preflight data. Status ${res.status}`,
-            success: false
-          });
+          this.props.history.push(`/app/${slug}`)
         }
       })
       .catch((err) => {
         console.log(err);
-        this.setState({
-          errorMessage: err ? `Encountered an error while trying to send preflight data: ${err.message}` : "Something went wrong, please try again.",
-          success: false
-        });
+        this.props.history.push(`/app/${slug}`)
       });
   }
 

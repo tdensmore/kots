@@ -69,24 +69,28 @@ func (h *Handler) DeployAppVersion(w http.ResponseWriter, r *http.Request) {
 
 	downstreams, err := store.GetStore().ListDownstreamsForApp(a.ID)
 	if err != nil {
-		logger.Error(errors.Wrap(err, "failed to list downstreams for app"))
+		err = errors.Wrap(err, "failed to list downstreams for app")
+		logger.Error(err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	} else if len(downstreams) == 0 {
-		logger.Error(errors.Wrap(err, "no downstreams for app"))
+		err = errors.New("no downstreams for app")
+		logger.Error(err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	if request.IsSkipPreflights {
-		isFailedPreflight := false
-		if err := reporting.PreflightInfoThreadSend(a.ID, appSlug, int(sequence), request.IsSkipPreflights, isFailedPreflight); err != nil {
+		isUpdate := false
+		if err := reporting.SendPreflightInfo(a.ID, int(sequence), request.IsSkipPreflights, isUpdate); err != nil {
 			logger.Error(errors.Wrap(err, "failed to start preflight thread"))
 			return
 		}
 	}
 
 	if request.ContinueWithFailedPreflights && !request.IsSkipPreflights {
-		isFailedPreflight := true
-		if err := reporting.PreflightInfoThreadSend(a.ID, appSlug, int(sequence), request.IsSkipPreflights, isFailedPreflight); err != nil {
+		isUpdate := true
+		if err := reporting.SendPreflightInfo(a.ID, int(sequence), request.IsSkipPreflights, isUpdate); err != nil {
 			logger.Error(errors.Wrap(err, "failed to start preflight thread"))
 			return
 		}

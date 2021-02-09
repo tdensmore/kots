@@ -5,9 +5,10 @@
 package mock_handlers
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	http "net/http"
 	reflect "reflect"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // MockKOTSHandler is a mock of KOTSHandler interface
@@ -523,6 +524,18 @@ func (m *MockKOTSHandler) GetPreflightCommand(w http.ResponseWriter, r *http.Req
 func (mr *MockKOTSHandlerMockRecorder) GetPreflightCommand(w, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPreflightCommand", reflect.TypeOf((*MockKOTSHandler)(nil).GetPreflightCommand), w, r)
+}
+
+// SkipPreflights mocks base method
+func (m *MockKOTSHandler) SkipPreflights(w http.ResponseWriter, r *http.Request) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SkipPreflights", w, r)
+}
+
+// SkipPreflights indicates an expected call of SkipPreflights
+func (mr *MockKOTSHandlerMockRecorder) SkipPreflights(w, r interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SkipPreflights", reflect.TypeOf((*MockKOTSHandler)(nil).SkipPreflights), w, r)
 }
 
 // DeployAppVersion mocks base method

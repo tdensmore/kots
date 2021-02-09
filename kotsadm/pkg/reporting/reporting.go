@@ -15,7 +15,7 @@ import (
 	kotsv1beta1 "github.com/replicatedhq/kots/kotskinds/apis/kots/v1beta1"
 )
 
-func SendPreflightsReportToReplicatedApp(license *kotsv1beta1.License, appSlug string, clusterID string, sequence int, skipPreflights bool, installStatus string) error {
+func SendPreflightsReportToReplicatedApp(license *kotsv1beta1.License, appID string, clusterID string, sequence int, skipPreflights bool, installStatus string) error {
 	urlValues := url.Values{}
 
 	sequenceToStr := fmt.Sprintf("%d", sequence)
@@ -25,7 +25,7 @@ func SendPreflightsReportToReplicatedApp(license *kotsv1beta1.License, appSlug s
 	urlValues.Set("skipPreflights", skipPreflightsToStr)
 	urlValues.Set("installStatus", installStatus)
 
-	url := fmt.Sprintf("%s/preflights/reporting/%s/%s?%s", license.Spec.Endpoint, appSlug, clusterID, urlValues.Encode())
+	url := fmt.Sprintf("%s/kots_metrics/preflights/%s/%s?%s", license.Spec.Endpoint, appID, clusterID, urlValues.Encode())
 
 	var buf bytes.Buffer
 	postReq, err := http.NewRequest("POST", url, &buf)
@@ -53,44 +53,45 @@ func SendPreflightsReportToReplicatedApp(license *kotsv1beta1.License, appSlug s
 	return nil
 }
 
-func PreflightInfoThreadSend(appID string, appSlug string, sequence int, isSkipPreflights bool, isFailedPreflight bool) error {
-	go func() {
-		<-time.After(20 * time.Second)
-		license, err := store.GetStore().GetLatestLicenseForApp(appID)
-		if err != nil {
-			logger.Error(errors.Wrap(err, "failed to find license for app"))
-			return
-		}
+func SendPreflightInfo(appID string, sequence int, isSkipPreflights bool, isUpdate bool) error {
+	license, err := store.GetStore().GetLatestLicenseForApp(appID)
+	if err != nil {
+		logger.Error(errors.Wrap(err, "failed to find license for app"))
+		return nil
+	}
 
-		downstreams, err := store.GetStore().ListDownstreamsForApp(appID)
-		if err != nil {
-			logger.Error(errors.Wrap(err, "failed to list downstreams for app"))
-			return
-		} else if len(downstreams) == 0 {
-			logger.Error(errors.Wrap(err, "no downstreams for app"))
-			return
-		}
+	downstreams, err := store.GetStore().ListDownstreamsForApp(appID)
+	if err != nil {
+		logger.Error(errors.Wrap(err, "failed to list downstreams for app"))
+		return nil
+	} else if len(downstreams) == 0 {
+		logger.Error(errors.Wrap(err, "no downstreams for app"))
+		return nil
+	}
 
-		clusterID := downstreams[0].ClusterID
+	clusterID := downstreams[0].ClusterID
 
-		if isSkipPreflights || isFailedPreflight {
+	if isSkipPreflights || isUpdate {
+		go func() {
+			<-time.After(20 * time.Second)
 			currentVersion, err := downstream.GetCurrentVersion(appID, clusterID)
 			if err != nil {
 				logger.Debugf("failed to get current downstream version", err)
 				return
 			}
-
-			if err := SendPreflightsReportToReplicatedApp(license, appSlug, clusterID, sequence, isSkipPreflights, currentVersion.Status); err != nil {
-				logger.Error(errors.Wrap(err, "failed to send preflights data to replicated app"))
-				return
+			if currentVersion.Status != "" && currentVersion.Status != "deploying" {
+				if err := SendPreflightsReportToReplicatedApp(license, appID, clusterID, sequence, isSkipPreflights, currentVersion.Status); err != nil {
+					logger.Error(errors.Wrap(err, "failed to send preflights data to replicated app"))
+					return
+				}
 			}
-		} else {
-			if err := SendPreflightsReportToReplicatedApp(license, appSlug, clusterID, sequence, isSkipPreflights, ""); err != nil {
-				logger.Error(errors.Wrap(err, "failed to send preflights data to replicated app"))
-				return
-			}
+		}()
+	} else {
+		if err := SendPreflightsReportToReplicatedApp(license, appID, clusterID, sequence, isSkipPreflights, ""); err != nil {
+			logger.Error(errors.Wrap(err, "failed to send preflights data to replicated app"))
+			return nil
 		}
-	}()
+	}
 
 	return nil
 }

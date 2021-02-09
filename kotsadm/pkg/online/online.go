@@ -14,6 +14,7 @@ import (
 	"github.com/replicatedhq/kots/kotsadm/pkg/logger"
 	"github.com/replicatedhq/kots/kotsadm/pkg/online/types"
 	"github.com/replicatedhq/kots/kotsadm/pkg/preflight"
+	"github.com/replicatedhq/kots/kotsadm/pkg/reporting"
 	"github.com/replicatedhq/kots/kotsadm/pkg/store"
 	"github.com/replicatedhq/kots/kotsadm/pkg/supportbundle"
 	"github.com/replicatedhq/kots/kotsadm/pkg/updatechecker"
@@ -228,17 +229,12 @@ func CreateAppFromOnline(pendingApp *types.PendingApp, upstreamURI string, isAut
 		if err := preflight.Run(pendingApp.ID, pendingApp.Slug, newSequence, false, tmpRoot); err != nil {
 			return nil, errors.Wrap(err, "failed to start preflights")
 		}
-		isFailedPreflight := false
-		if err := reporting.PreflightInfoThreadSend(pendingApp.ID, pendingApp.Slug, int(newSequence), skipPreflights, isFailedPreflight); err != nil {
-			logger.Error(errors.Wrap(err, "failed to start preflight thread"))
-			return
-		}
-	} else {
-		isFailedPreflight := false
-		if err := reporting.PreflightInfoThreadSend(pendingApp.ID, pendingApp.Slug, int(newSequence), skipPreflights, isFailedPreflight); err != nil {
-			logger.Error(errors.Wrap(err, "failed to start preflight thread"))
-			return
-		}
+	}
+
+	isUpdate := false
+	if err := reporting.SendPreflightInfo(pendingApp.ID, int(newSequence), skipPreflights, isUpdate); err != nil {
+		logger.Error(errors.Wrap(err, "failed to start preflight thread"))
+		return
 	}
 
 	return kotsKinds, nil

@@ -286,37 +286,31 @@ func (h *Handler) SkipPreflights(w http.ResponseWriter, r *http.Request) {
 
 	foundApp, err := store.GetStore().GetAppFromSlug(appSlug)
 	if err != nil {
-		logger.Error(err)
-		w.WriteHeader(500)
+		logger.Debugf("failed to get app from slug", err)
 		return
 	}
 
 	license, err := store.GetStore().GetLatestLicenseForApp(foundApp.ID)
 	if err != nil {
-		logger.Error(err)
-		w.WriteHeader(500)
+		logger.Debugf("failed to get latest license for app", err)
 		return
 	}
 
 	downstreams, err := store.GetStore().ListDownstreamsForApp(foundApp.ID)
 	if err != nil {
-		err = errors.Wrap(err, "failed to list downstreams for app")
-		logger.Error(err)
-		w.WriteHeader(http.StatusInternalServerError)
+		logger.Debugf("failed to get downstreams for app", err)
 		return
 	} else if len(downstreams) == 0 {
-		err = errors.New("no downstreams for app")
-		logger.Error(err)
-		w.WriteHeader(http.StatusInternalServerError)
+		logger.Debugf("no downstreams for app", err)
 		return
 	}
 
 	clusterID := downstreams[0].ClusterID
 
-	if err := reporting.SendPreflightsReportToReplicatedApp(license, appSlug, clusterID, 0, true, ""); err != nil {
+	if err := reporting.SendPreflightsReportToReplicatedApp(license, foundApp.ID, clusterID, 0, true, ""); err != nil {
 		logger.Debugf("failed to send preflights data to replicated app", err)
 		return
 	}
 
-	JSON(w, 200, struct{}{})
+	JSON(w, http.StatusOK, struct{}{})
 }
