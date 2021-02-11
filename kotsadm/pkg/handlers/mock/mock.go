@@ -526,16 +526,16 @@ func (mr *MockKOTSHandlerMockRecorder) GetPreflightCommand(w, r interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPreflightCommand", reflect.TypeOf((*MockKOTSHandler)(nil).GetPreflightCommand), w, r)
 }
 
-// SkipPreflights mocks base method
-func (m *MockKOTSHandler) SkipPreflights(w http.ResponseWriter, r *http.Request) {
+// PreflightsReports mocks base method
+func (m *MockKOTSHandler) PreflightsReports(w http.ResponseWriter, r *http.Request) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SkipPreflights", w, r)
+	m.ctrl.Call(m, "PreflightsReports", w, r)
 }
 
-// SkipPreflights indicates an expected call of SkipPreflights
-func (mr *MockKOTSHandlerMockRecorder) SkipPreflights(w, r interface{}) *gomock.Call {
+// PreflightsReports indicates an expected call of PreflightsReports
+func (mr *MockKOTSHandlerMockRecorder) PreflightsReports(w, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SkipPreflights", reflect.TypeOf((*MockKOTSHandler)(nil).SkipPreflights), w, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PreflightsReports", reflect.TypeOf((*MockKOTSHandler)(nil).PreflightsReports), w, r)
 }
 
 // DeployAppVersion mocks base method

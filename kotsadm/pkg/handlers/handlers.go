@@ -125,8 +125,8 @@ func RegisterSessionAuthRoutes(r *mux.Router, kotsStore store.KOTSStore, handler
 		HandlerFunc(middleware.EnforceAccess(policy.AppDownstreamPreflightRead, handler.GetPreflightResult))
 	r.Name("GetPreflightCommand").Path("/api/v1/app/{appSlug}/sequence/{sequence}/preflightcommand").Methods("POST").
 		HandlerFunc(middleware.EnforceAccess(policy.AppRead, handler.GetPreflightCommand)) // this is intentionall
-	r.Name("SkipPreflights").Path("/api/v1/app/{appSlug}/preflight/skip").Methods("POST").
-		HandlerFunc(middleware.EnforceAccess(policy.AppDownstreamPreflightWrite, handler.SkipPreflights))
+	r.Name("PreflightsReports").Path("/api/v1/app/{appSlug}/preflight/report").Methods("POST").
+		HandlerFunc(middleware.EnforceAccess(policy.AppDownstreamPreflightWrite, handler.PreflightsReports))
 
 	r.Name("DeployAppVersion").Path("/api/v1/app/{appSlug}/sequence/{sequence}/deploy").Methods("POST").
 		HandlerFunc(middleware.EnforceAccess(policy.AppDownstreamWrite, handler.DeployAppVersion))

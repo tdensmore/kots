@@ -3,7 +3,6 @@ package reporting
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -45,51 +44,47 @@ func SendPreflightsReportToReplicatedApp(license *kotsv1beta1.License, appID str
 		return errors.Errorf("Unexpected status code %d", resp.StatusCode)
 	}
 
-	_, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return errors.Wrap(err, "failed to read")
-	}
-
 	return nil
 }
 
 func SendPreflightInfo(appID string, sequence int, isSkipPreflights bool, isUpdate bool) error {
 	license, err := store.GetStore().GetLatestLicenseForApp(appID)
 	if err != nil {
-		logger.Error(errors.Wrap(err, "failed to find license for app"))
-		return nil
+		return errors.Wrap(err, "failed to find license for app")
 	}
 
 	downstreams, err := store.GetStore().ListDownstreamsForApp(appID)
 	if err != nil {
-		logger.Error(errors.Wrap(err, "failed to list downstreams for app"))
-		return nil
+		return errors.Wrap(err, "failed to list downstreams for app")
 	} else if len(downstreams) == 0 {
-		logger.Error(errors.Wrap(err, "no downstreams for app"))
-		return nil
+		err = errors.New("no downstreams for app")
+		return err
 	}
 
 	clusterID := downstreams[0].ClusterID
 
 	if isSkipPreflights || isUpdate {
+		// at this point current version status does not exist so it's
+		// neccessary to create thread to get it after version is deployed
+
+		// isUpdate means that it's not on initial install
 		go func() {
 			<-time.After(20 * time.Second)
 			currentVersion, err := downstream.GetCurrentVersion(appID, clusterID)
 			if err != nil {
-				logger.Debugf("failed to get current downstream version", err)
+				logger.Debugf("failed to get current downstream version: %v", err)
 				return
 			}
 			if currentVersion.Status != "" && currentVersion.Status != "deploying" {
 				if err := SendPreflightsReportToReplicatedApp(license, appID, clusterID, sequence, isSkipPreflights, currentVersion.Status); err != nil {
-					logger.Error(errors.Wrap(err, "failed to send preflights data to replicated app"))
+					logger.Debugf("failed to send preflights data to replicated app: %v", err)
 					return
 				}
 			}
 		}()
 	} else {
 		if err := SendPreflightsReportToReplicatedApp(license, appID, clusterID, sequence, isSkipPreflights, ""); err != nil {
-			logger.Error(errors.Wrap(err, "failed to send preflights data to replicated app"))
-			return nil
+			return errors.Wrap(err, "failed to send preflights data to replicated app")
 		}
 	}
 

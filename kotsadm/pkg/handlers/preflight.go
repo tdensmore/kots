@@ -281,36 +281,43 @@ func (h *Handler) PostPreflightStatus(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
-func (h *Handler) SkipPreflights(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) PreflightsReports(w http.ResponseWriter, r *http.Request) {
 	appSlug := mux.Vars(r)["appSlug"]
 
 	foundApp, err := store.GetStore().GetAppFromSlug(appSlug)
 	if err != nil {
-		logger.Debugf("failed to get app from slug", err)
+		logger.Debugf("failed to get app from slug: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	license, err := store.GetStore().GetLatestLicenseForApp(foundApp.ID)
 	if err != nil {
-		logger.Debugf("failed to get latest license for app", err)
+		logger.Debugf("failed to get latest license for app: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	downstreams, err := store.GetStore().ListDownstreamsForApp(foundApp.ID)
 	if err != nil {
-		logger.Debugf("failed to get downstreams for app", err)
+		logger.Debugf("failed to get downstreams for app: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	} else if len(downstreams) == 0 {
-		logger.Debugf("no downstreams for app", err)
+		err = errors.New("no downstreams for app")
+		logger.Debugf("failed to get downstreams for app: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	clusterID := downstreams[0].ClusterID
 
-	if err := reporting.SendPreflightsReportToReplicatedApp(license, foundApp.ID, clusterID, 0, true, ""); err != nil {
-		logger.Debugf("failed to send preflights data to replicated app", err)
-		return
-	}
+	go func() {
+		if err := reporting.SendPreflightsReportToReplicatedApp(license, foundApp.ID, clusterID, 0, true, ""); err != nil {
+			logger.Debugf("failed to send preflights data to replicated app: %v", err)
+			return
+		}
+	}()
 
 	JSON(w, http.StatusOK, struct{}{})
 }

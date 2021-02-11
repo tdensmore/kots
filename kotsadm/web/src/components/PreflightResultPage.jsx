@@ -68,7 +68,7 @@ class PreflightResultPage extends Component {
           "Content-Type": "application/json",
         },
         method: "POST",
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           isSkipPreflights: false,
           continueWithFailedPreflights: force ? true : false
         }),
@@ -259,10 +259,10 @@ class PreflightResultPage extends Component {
     }
   }
 
-  sendSkipPreflightsData = async () => {
+  sendPreflightsReport = async () => {
     const { slug } = this.props.match.params;
 
-    fetch(`${window.env.API_ENDPOINT}/app/${slug}/preflight/skip`, {
+    fetch(`${window.env.API_ENDPOINT}/app/${slug}/preflight/report`, {
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
@@ -270,17 +270,7 @@ class PreflightResultPage extends Component {
       },
       method: "POST",
     })
-      .then((res) => {
-        if (res.status === 200) {
-          this.props.history.push(`/app/${slug}`)
-        } else {
-          this.props.history.push(`/app/${slug}`)
-        }
-      })
-      .catch((err) => {
-        console.log(err);
-        this.props.history.push(`/app/${slug}`)
-      });
+      this.props.history.push(`/app/${slug}`)
   }
 
   render() {
@@ -383,7 +373,7 @@ class PreflightResultPage extends Component {
             <p className="u-fontSize--normal u-color--dustyGray u-lineHeight--normal u-marginBottom--20">Skipping preflight checks will not cancel them. They will continue to run in the background. Do you want to continue to the {slug} dashboard? </p>
             <div className="u-marginTop--10 flex justifyContent--flexEnd">
               <button type="button" className="btn secondary" onClick={this.hideSkipModal}>Close</button>
-              <button type="button" className="btn blue primary u-marginLeft--10" onClick={this.sendSkipPreflightsData}>Go to Dashboard</button>
+              <button type="button" className="btn blue primary u-marginLeft--10" onClick={this.sendPreflightsReport}>Go to Dashboard</button>
             </div>
           </div>
         </Modal>
