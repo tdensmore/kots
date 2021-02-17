@@ -3,7 +3,6 @@ package ocistore
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -16,9 +15,9 @@ import (
 	"github.com/deislabs/oras/pkg/content"
 	"github.com/deislabs/oras/pkg/oras"
 	"github.com/mholt/archiver"
-	"github.com/ocidb/ocidb/pkg/ocidb"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
+	kotsv1beta1 "github.com/replicatedhq/kots/kotskinds/apis/kots/v1beta1"
 	versiontypes "github.com/replicatedhq/kots/pkg/api/version/types"
 	apptypes "github.com/replicatedhq/kots/pkg/app/types"
 	gitopstypes "github.com/replicatedhq/kots/pkg/gitops/types"
@@ -28,6 +27,7 @@ import (
 	"github.com/replicatedhq/kots/pkg/logger"
 	rendertypes "github.com/replicatedhq/kots/pkg/render/types"
 	"github.com/replicatedhq/kots/pkg/secrets"
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -99,7 +99,7 @@ func (s OCIStore) IsRollbackSupportedForVersion(appID string, sequence int64) (b
 	return kotsAppSpec.Spec.AllowRollback, nil
 }
 
-func (s OCIStore) IsSnapshotsSupportedForVersion(a *apptypes.App, sequence int64) (bool, error) {
+func (s OCIStore) IsSnapshotsSupportedForVersion(a *apptypes.App, sequence int64, renderer rendertypes.Renderer) (bool, error) {
 	query := `select backup_spec from app_version where app_id = $1 and sequence = $2`
 	row := s.connection.DB.QueryRow(query, a.ID, sequence)
 
@@ -137,7 +137,7 @@ func (s OCIStore) IsSnapshotsSupportedForVersion(a *apptypes.App, sequence int64
 	}
 
 	// as far as I can tell, this is the only place within kotsadm/pkg/store that uses templating
-	rendered, err := render.RenderFile(kotsKinds, registrySettings, sequence, a.IsAirgap, []byte(backupSpecStr.String))
+	rendered, err := renderer.RenderFile(kotsKinds, registrySettings, a.Slug, sequence, a.IsAirgap, []byte(backupSpecStr.String))
 	if err != nil {
 		return false, errors.Wrap(err, "failed to render backup spec")
 	}
@@ -163,8 +163,7 @@ func (s OCIStore) IsSnapshotsSupportedForVersion(a *apptypes.App, sequence int64
 		return false, nil
 	}
 
-func (s OCIStore) IsSnapshotsSupportedForVersion(a *apptypes.App, sequence int64, renderer rendertypes.Renderer) (bool, error) {
-	return false, ErrNotImplemented
+	return true, nil
 }
 
 // CreateAppVersion takes an unarchived app, makes an archive and then uploads it
@@ -321,127 +320,8 @@ func (s OCIStore) GetAppVersionArchive(appID string, sequence int64, dstPath str
 	return nil
 }
 
-func (s OCIStore) CreateAppVersion(appID string, currentSequence *int64, appName string, appIcon string, kotsKinds *kotsutil.KotsKinds, filesInDir string, gitops gitopstypes.DownstreamGitOps, source string, skipPreflights bool) (int64, error) {
-	tx, err := s.connection.DB.Begin()
-	if err != nil {
-		return int64(0), errors.Wrap(err, "failed to begin")
-	}
-	defer tx.Rollback()
-
-	newSequence, err := s.createAppVersion(tx, appID, currentSequence, appName, appIcon, kotsKinds)
-	if err != nil {
-		return int64(0), errors.Wrap(err, "failed to create app version")
-	}
-
-	if err := s.CreateAppVersionArchive(appID, int64(newSequence), filesInDir); err != nil {
-		return int64(0), errors.Wrap(err, "failed to create app version archive")
-	}
-
-	previousArchiveDir := ""
-	if currentSequence != nil {
-		previousDir, err := ioutil.TempDir("", "kotsadm")
-		if err != nil {
-			return int64(0), errors.Wrap(err, "failed to create temp dir")
-		}
-		defer os.RemoveAll(previousDir)
-
-		// Get the previous archive, we need this to calculate the diff
-		err = s.GetAppVersionArchive(appID, *currentSequence, previousDir)
-		if err != nil {
-			return int64(0), errors.Wrap(err, "failed to get previous archive")
-		}
-
-		previousArchiveDir = previousDir
-	}
-
-	registryInfo, err := s.GetRegistryDetailsForApp(appID)
-	if err != nil {
-		return int64(0), errors.Wrap(err, "failed to get app registry info")
-	}
-
-	downstreams, err := s.ListDownstreamsForApp(appID)
-	if err != nil {
-		return int64(0), errors.Wrap(err, "failed to list downstreams")
-	}
-
-	for _, d := range downstreams {
-		// there's a small chance this is not optimal, but no current code path
-		// will support multiple downstreams, so this is cleaner here for now
-		licenseSpec, err := kotsKinds.Marshal("kots.io", "v1beta1", "License")
-		if err != nil {
-			return int64(0), errors.Wrap(err, "failed to marshal license spec")
-		}
-		configSpec, err := kotsKinds.Marshal("kots.io", "v1beta1", "Config")
-		if err != nil {
-			return int64(0), errors.Wrap(err, "failed to marshal config spec")
-		}
-		configValuesSpec, err := kotsKinds.Marshal("kots.io", "v1beta1", "ConfigValues")
-		if err != nil {
-			return int64(0), errors.Wrap(err, "failed to marshal configvalues spec")
-		}
-		identityConfigSpec, err := kotsKinds.Marshal("kots.io", "v1beta1", "IdentityConfig")
-		if err != nil {
-			return int64(0), errors.Wrap(err, "failed to marshal identityconfig spec")
-		}
-
-		configOpts := kotsconfig.ConfigOptions{
-			ConfigSpec:         configSpec,
-			ConfigValuesSpec:   configValuesSpec,
-			LicenseSpec:        licenseSpec,
-			IdentityConfigSpec: identityConfigSpec,
-		}
-		if registryInfo != nil {
-			configOpts.RegistryHost = registryInfo.Hostname
-			configOpts.RegistryNamespace = registryInfo.Namespace
-			configOpts.RegistryUser = registryInfo.Username
-			configOpts.RegistryPassword = registryInfo.Password
-		}
-
-		downstreamStatus := "pending"
-		if currentSequence == nil && kotsKinds.Config != nil {
-			downstreamStatus = "pending_config"
-		} else if kotsKinds.Preflight != nil && !skipPreflights {
-			downstreamStatus = "pending_preflight"
-		}
-
-		diffSummary, diffSummaryError := "", ""
-		if currentSequence != nil {
-			// diff this release from the last release
-			diff, err := kustomize.DiffAppVersionsForDownstream(d.Name, filesInDir, previousArchiveDir, kotsKinds.KustomizeVersion())
-			if err != nil {
-				diffSummaryError = errors.Wrap(err, "failed to diff").Error()
-			} else {
-				b, err := json.Marshal(diff)
-				if err != nil {
-					diffSummaryError = errors.Wrap(err, "failed to marshal diff").Error()
-				}
-				diffSummary = string(b)
-			}
-		}
-
-		commitURL, err := gitops.CreateGitOpsDownstreamCommit(appID, d.ClusterID, int(newSequence), filesInDir, d.Name)
-		if err != nil {
-			return int64(0), errors.Wrap(err, "failed to create gitops commit")
-		}
-
-		err = s.addAppVersionToDownstream(tx, appID, d.ClusterID, newSequence,
-			kotsKinds.Installation.Spec.VersionLabel, downstreamStatus, source,
-			diffSummary, diffSummaryError, commitURL, commitURL != "")
-		if err != nil {
-			return int64(0), errors.Wrap(err, "failed to create downstream version")
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return int64(0), errors.Wrap(err, "failed to commit transaction")
-	}
-
-	if err := ocidb.Commit(context.TODO(), s.connection); err != nil {
-		return int64(0), errors.Wrap(err, "failed to commit")
-	}
-
-	return newSequence, nil
-
+func (s OCIStore) CreateAppVersion(appID string, currentSequence *int64, filesInDir string, source string, skipPreflights bool, gitops gitopstypes.DownstreamGitOps) (int64, error) {
+	return int64(0), ErrNotImplemented
 }
 
 func (s OCIStore) createAppVersion(tx *sql.Tx, appID string, currentSequence *int64, appName string, appIcon string, kotsKinds *kotsutil.KotsKinds) (int64, error) {

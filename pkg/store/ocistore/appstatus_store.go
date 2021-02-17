@@ -6,12 +6,10 @@ import (
 	"encoding/json"
 	"time"
 
-	appstatustypes "github.com/replicatedhq/kots/pkg/api/appstatus/types"
-
 	"github.com/ocidb/ocidb/pkg/ocidb"
 	"github.com/pkg/errors"
 	"github.com/replicatedhq/kots/kotsadm/pkg/appstatus"
-	appstatustypes "github.com/replicatedhq/kots/kotsadm/pkg/appstatus/types"
+	appstatustypes "github.com/replicatedhq/kots/pkg/api/appstatus/types"
 )
 
 func (s OCIStore) GetAppStatus(appID string) (*appstatustypes.AppStatus, error) {
