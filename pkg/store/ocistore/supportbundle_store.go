@@ -36,7 +36,7 @@ func (s OCIStore) ListSupportBundles(appID string) ([]*supportbundletypes.Suppor
 	}
 	defer rows.Close()
 
-	supportBundles := []*types.SupportBundle{}
+	supportBundles := []*supportbundletypes.SupportBundle{}
 
 	for rows.Next() {
 		var name sql.NullString
@@ -44,7 +44,7 @@ func (s OCIStore) ListSupportBundles(appID string) ([]*supportbundletypes.Suppor
 		var uploadedAt sql.NullTime
 		var isArchived sql.NullBool
 
-		s := &types.SupportBundle{}
+		s := &supportbundletypes.SupportBundle{}
 		if err := rows.Scan(&s.ID, &s.Slug, &s.AppID, &name, &size, &s.Status, &s.CreatedAt, &uploadedAt, &isArchived); err != nil {
 			return nil, errors.Wrap(err, "failed to scan")
 		}
@@ -211,7 +211,7 @@ func (s OCIStore) CreateSupportBundle(id string, appID string, archivePath strin
 		return nil, errors.Wrap(err, "failed to commit")
 	}
 
-	return &types.SupportBundle{
+	return &supportbundletypes.SupportBundle{
 		ID: id,
 	}, nil
 }
@@ -282,7 +282,7 @@ func (s OCIStore) GetSupportBundleAnalysis(id string) (*supportbundletypes.Suppo
 	var maxSeverity sql.NullString
 	var insightsStr sql.NullString
 
-	a := &types.SupportBundleAnalysis{}
+	a := &supportbundletypes.SupportBundleAnalysis{}
 	if err := row.Scan(&a.ID, &_error, &maxSeverity, &insightsStr, &a.CreatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -316,10 +316,10 @@ func (s OCIStore) GetSupportBundleAnalysis(id string) (*supportbundletypes.Suppo
 			dbInsights = []DBInsight{}
 		}
 
-		insights := []types.SupportBundleInsight{}
+		insights := []supportbundletypes.SupportBundleInsight{}
 		for _, dbInsight := range dbInsights {
 			desiredPosition, _ := strconv.ParseFloat(dbInsight.Labels.DesiredPosition, 64)
-			insight := types.SupportBundleInsight{
+			insight := supportbundletypes.SupportBundleInsight{
 				Key:             dbInsight.Name,
 				Severity:        dbInsight.Severity,
 				Primary:         dbInsight.Insight.Primary,

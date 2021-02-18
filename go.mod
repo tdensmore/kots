@@ -57,7 +57,7 @@ require (
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/nwaples/rardecode v1.0.0 // indirect
-	github.com/ocidb/ocidb v0.0.0-20201206152354-613063128535
+	github.com/ocidb/ocidb v0.0.0-20201208225931-21f4e861e0f5
 	github.com/open-policy-agent/opa v0.24.0
 	github.com/opencontainers/image-spec v1.0.2-0.20190823105129-775207bd45b6
 	github.com/otiai10/copy v1.0.2

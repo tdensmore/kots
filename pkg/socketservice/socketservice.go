@@ -27,7 +27,6 @@ import (
 	"github.com/replicatedhq/kots/pkg/logger"
 	"github.com/replicatedhq/kots/pkg/midstream"
 	"github.com/replicatedhq/kots/pkg/render"
-	"github.com/replicatedhq/kots/pkg/snapshot"
 	"github.com/replicatedhq/kots/pkg/socket"
 	"github.com/replicatedhq/kots/pkg/socket/transport"
 	"github.com/replicatedhq/kots/pkg/store"

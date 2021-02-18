@@ -4,7 +4,6 @@ import (
 	"database/sql"
 
 	"github.com/pkg/errors"
-	"github.com/replicatedhq/kots/pkg/airgap/types"
 	airgaptypes "github.com/replicatedhq/kots/pkg/airgap/types"
 	"github.com/replicatedhq/kots/pkg/persistence"
 )

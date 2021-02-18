@@ -2,6 +2,7 @@ package ocistore
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"os"
 
