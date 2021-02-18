@@ -15,6 +15,7 @@ import (
 	downstream "github.com/replicatedhq/kots/pkg/kotsadmdownstream"
 	snapshot "github.com/replicatedhq/kots/pkg/kotsadmsnapshot"
 	"github.com/replicatedhq/kots/pkg/logger"
+	"github.com/replicatedhq/kots/pkg/snapshot"
 	"github.com/replicatedhq/kots/pkg/store"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	kuberneteserrors "k8s.io/apimachinery/pkg/api/errors"

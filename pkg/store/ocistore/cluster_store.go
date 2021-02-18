@@ -9,9 +9,8 @@ import (
 	"github.com/gosimple/slug"
 	"github.com/ocidb/ocidb/pkg/ocidb"
 	"github.com/pkg/errors"
-	"github.com/replicatedhq/kots/kotsadm/pkg/logger"
-	"github.com/replicatedhq/kots/kotsadm/pkg/rand"
 	downstreamtypes "github.com/replicatedhq/kots/pkg/api/downstream/types"
+	"github.com/replicatedhq/kots/pkg/logger"
 	"github.com/replicatedhq/kots/pkg/rand"
 	"go.uber.org/zap"
 )

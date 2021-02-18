@@ -9,6 +9,7 @@ import (
 	snapshottypes "github.com/replicatedhq/kots/pkg/api/snapshot/types"
 	snapshot "github.com/replicatedhq/kots/pkg/kotsadmsnapshot"
 	"github.com/replicatedhq/kots/pkg/logger"
+	"github.com/replicatedhq/kots/pkg/snapshot"
 	"github.com/replicatedhq/kots/pkg/store"
 )
 

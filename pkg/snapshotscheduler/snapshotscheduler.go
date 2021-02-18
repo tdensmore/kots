@@ -11,6 +11,7 @@ import (
 	apptypes "github.com/replicatedhq/kots/pkg/app/types"
 	snapshot "github.com/replicatedhq/kots/pkg/kotsadmsnapshot"
 	"github.com/replicatedhq/kots/pkg/logger"
+	"github.com/replicatedhq/kots/pkg/snapshot"
 	"github.com/replicatedhq/kots/pkg/store"
 	"k8s.io/apimachinery/pkg/util/rand"
 

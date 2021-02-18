@@ -10,11 +10,10 @@ import (
 	"github.com/gosimple/slug"
 	"github.com/ocidb/ocidb/pkg/ocidb"
 	"github.com/pkg/errors"
-	apptypes "github.com/replicatedhq/kots/kotsadm/pkg/app/types"
-	"github.com/replicatedhq/kots/kotsadm/pkg/gitops"
-	"github.com/replicatedhq/kots/kotsadm/pkg/logger"
 	downstreamtypes "github.com/replicatedhq/kots/pkg/api/downstream/types"
 	apptypes "github.com/replicatedhq/kots/pkg/app/types"
+	"github.com/replicatedhq/kots/pkg/gitops"
+	"github.com/replicatedhq/kots/pkg/logger"
 	"github.com/segmentio/ksuid"
 	"go.uber.org/zap"
 )

@@ -8,7 +8,7 @@ import (
 	"github.com/ocidb/ocidb/pkg/ocidb"
 	ocidbtypes "github.com/ocidb/ocidb/pkg/ocidb/types"
 	"github.com/pkg/errors"
-	"github.com/replicatedhq/kots/kotsadm/pkg/store/ocistore/tables"
+	"github.com/replicatedhq/kots/pkg/store/ocistore/tables"
 	schemasv1alpha4 "github.com/schemahero/schemahero/pkg/apis/schemas/v1alpha4"
 	corev1 "k8s.io/api/core/v1"
 	kuberneteserrors "k8s.io/apimachinery/pkg/api/errors"

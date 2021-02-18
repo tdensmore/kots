@@ -7,12 +7,13 @@ import (
 
 	"github.com/ocidb/ocidb/pkg/ocidb"
 	"github.com/pkg/errors"
+	"github.com/replicatedhq/kots/pkg/crypto"
 	"github.com/replicatedhq/kots/pkg/logger"
 	registrytypes "github.com/replicatedhq/kots/pkg/registry/types"
-	"github.com/replicatedhq/kots/pkg/crypto"
 	"go.uber.org/zap"
 )
 
+func (s OCIStore) GetRegistryDetailsForApp(appID string) (*registrytypes.RegistrySettings, error) {
 	query := `select registry_hostname, registry_username, registry_password_enc, namespace from app where id = $1`
 	row := s.connection.DB.QueryRow(query, appID)
 

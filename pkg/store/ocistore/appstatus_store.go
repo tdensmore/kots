@@ -8,8 +8,8 @@ import (
 
 	"github.com/ocidb/ocidb/pkg/ocidb"
 	"github.com/pkg/errors"
-	"github.com/replicatedhq/kots/kotsadm/pkg/appstatus"
 	appstatustypes "github.com/replicatedhq/kots/pkg/api/appstatus/types"
+	"github.com/replicatedhq/kots/pkg/appstatus"
 )
 
 func (s OCIStore) GetAppStatus(appID string) (*appstatustypes.AppStatus, error) {
